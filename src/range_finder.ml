@@ -7,7 +7,7 @@ open! Core
 open! Hardcaml
 open! Signal
 
-let num_bits = 16
+let num_bits = 12
 
 (* Every hardcaml module should have an I and an O record, which define the module
    interface. *)
@@ -53,7 +53,9 @@ let create scope ({ clock; clear; start; finish; data_in; data_in_valid } : _ I.
   let%hw_var little_sum = Variable.wire ~default:(zero num_bits) () in
   compile [ little_sum <-- current_position.value +: data_in ];
   let%hw_var next_pos = Variable.wire ~default:(zero num_bits) () in
-  (*handle overflows - unrolled at compile time - lots of area, but completes in one cycle*)
+  (*
+     handle overflows - unrolled at compile time - large area, but completes in one cycle
+  *)
   let buckets = List.init 10 ~f:(fun i -> (i + 1) * 100) in
   let neg_adjust =
     let open Hardcaml.Always in
@@ -71,41 +73,10 @@ let create scope ({ clock; clear; start; finish; data_in; data_in_valid } : _ I.
   in
   compile
     [ when_ data_in_valid ([ next_pos <-- little_sum.value ] @ neg_adjust @ pos_adjust) ];
-  (*   compile
-    [ when_
-        data_in_valid
-        [ next_pos <-- little_sum.value (*no overflow*)
-        ; if_
-            (little_sum.value <+. 0)
-            (*underflow*)
-            [ when_
-                (little_sum.value <+. 0 &: (little_sum.value >=+. -100))
-                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 100 ]
-            ; when_
-                (little_sum.value <+. -100 &: (little_sum.value >=+. -200))
-                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 200 ]
-            ; when_
-                (little_sum.value <+. -200 &: (little_sum.value >=+. -300))
-                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 300 ]
-            ; when_
-                (little_sum.value <+. -300 &: (little_sum.value >=+. -400))
-                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 400 ]
-            ]
-            (*overflow*)
-            [ when_
-                (little_sum.value >=+. 100 &: (little_sum.value <+. 200))
-                [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits 100 ]
-            ; when_
-                (little_sum.value >=+. 200 &: (little_sum.value <+. 300))
-                [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits 200 ]
-            ; when_
-                (little_sum.value >=+. 300 &: (little_sum.value <+. 400))
-                [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits 300 ]
-            ]
-        ]
-    ]; *)
+  (*
+     main state machine
+  *)
   let%hw_var zeros = Variable.reg spec ~width:num_bits in
-  let zeros_valid = Variable.wire ~default:gnd () in
   compile
     [ sm.switch
         [ ( Idle
@@ -124,11 +95,11 @@ let create scope ({ clock; clear; start; finish; data_in; data_in_valid } : _ I.
                 ]
             ; when_ finish [ sm.set_next Done ]
             ] )
-        ; Done, [ zeros_valid <-- vdd; when_ finish [ sm.set_next Accepting_inputs ] ]
+        ; Done, [ when_ finish [ sm.set_next Accepting_inputs ] ]
         ]
     ];
-  (*return the output signal*)
-  { zero_count = { value = zeros.value; valid = zeros_valid.value } }
+  (* return the output signal *)
+  { zero_count = { value = zeros.value; valid = sm.is Done } }
 ;;
 
 (* The [hierarchical] wrapper is used to maintain module hierarchy in the generated
