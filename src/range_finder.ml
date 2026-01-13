@@ -50,25 +50,60 @@ let create scope ({ clock; clear; start; finish; data_in; data_in_valid } : _ I.
   (*expose & name the state for waveforms*)
   let%hw _state = sm.current in
   let%hw_var current_position = Variable.reg spec ~width:num_bits in
-  (* We don't need to name the range here since it's immediately used in the module
-     output, which is automatically named when instantiating with [hierarchical] *)
   let%hw_var little_sum = Variable.wire ~default:(zero num_bits) () in
   compile [ little_sum <-- current_position.value +: data_in ];
   let%hw_var next_pos = Variable.wire ~default:(zero num_bits) () in
+  (*handle overflows - unrolled at compile time - lots of area, but completes in one cycle*)
+  let buckets = List.init 10 ~f:(fun i -> (i + 1) * 100) in
+  let neg_adjust =
+    let open Hardcaml.Always in
+    List.map buckets ~f:(fun k ->
+      when_
+        (little_sum.value <+. -(k - 100) &: (little_sum.value >=+. -k))
+        [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits k ])
+  in
+  let pos_adjust =
+    let open Hardcaml.Always in
+    List.map buckets ~f:(fun k ->
+      when_
+        (little_sum.value >=+. k &: (little_sum.value <+. k + 100))
+        [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits k ])
+  in
   compile
+    [ when_ data_in_valid ([ next_pos <-- little_sum.value ] @ neg_adjust @ pos_adjust) ];
+  (*   compile
     [ when_
         data_in_valid
-        [ when_
+        [ next_pos <-- little_sum.value (*no overflow*)
+        ; if_
             (little_sum.value <+. 0)
-            [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 100 ]
-        ; when_
-            (little_sum.value >+. 99)
-            [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits 100 ]
-        ; when_
-            (little_sum.value >=+. 0 &: (little_sum.value <=+. 99))
-            [ next_pos <-- little_sum.value ]
+            (*underflow*)
+            [ when_
+                (little_sum.value <+. 0 &: (little_sum.value >=+. -100))
+                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 100 ]
+            ; when_
+                (little_sum.value <+. -100 &: (little_sum.value >=+. -200))
+                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 200 ]
+            ; when_
+                (little_sum.value <+. -200 &: (little_sum.value >=+. -300))
+                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 300 ]
+            ; when_
+                (little_sum.value <+. -300 &: (little_sum.value >=+. -400))
+                [ next_pos <-- little_sum.value +: of_int_trunc ~width:num_bits 400 ]
+            ]
+            (*overflow*)
+            [ when_
+                (little_sum.value >=+. 100 &: (little_sum.value <+. 200))
+                [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits 100 ]
+            ; when_
+                (little_sum.value >=+. 200 &: (little_sum.value <+. 300))
+                [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits 200 ]
+            ; when_
+                (little_sum.value >=+. 300 &: (little_sum.value <+. 400))
+                [ next_pos <-- little_sum.value -: of_int_trunc ~width:num_bits 300 ]
+            ]
         ]
-    ];
+    ]; *)
   let%hw_var zeros = Variable.reg spec ~width:num_bits in
   let zeros_valid = Variable.wire ~default:gnd () in
   compile
@@ -83,17 +118,16 @@ let create scope ({ clock; clear; start; finish; data_in; data_in_valid } : _ I.
         ; ( Accepting_inputs
           , [ when_
                 data_in_valid
+                (*update state registers (pos and zero count)*)
                 [ current_position <-- next_pos.value
-                ; when_
-                    (next_pos.value ==: of_int_trunc ~width:num_bits 0)
-                    [ zeros <-- zeros.value +:. 1 ]
+                ; when_ (next_pos.value ==: zero num_bits) [ zeros <-- zeros.value +:. 1 ]
                 ]
             ; when_ finish [ sm.set_next Done ]
             ] )
         ; Done, [ zeros_valid <-- vdd; when_ finish [ sm.set_next Accepting_inputs ] ]
         ]
     ];
-  (* [.value] is used to get the underlying Signal.t from a Variable.t in the Always DSL. *)
+  (*return the output signal*)
   { zero_count = { value = zeros.value; valid = zeros_valid.value } }
 ;;
 
