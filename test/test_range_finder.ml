@@ -6,7 +6,7 @@ module Range_finder = Hardcaml_demo_project.Range_finder
 module Harness = Cyclesim_harness.Make (Range_finder.I) (Range_finder.O)
 
 let ( <--. ) = Bits.( <--. )
-let sample_input_values = [ 16; 67; 150; 4 ]
+let sample_input_values = [ -68; -30; 48; -5; 60; -55; -1; -99; 14; -82 ]
 
 let simple_testbench (sim : Harness.Sim.t) =
   let inputs = Cyclesim.inputs sim in
@@ -36,11 +36,11 @@ let simple_testbench (sim : Harness.Sim.t) =
   inputs.finish := Bits.gnd;
   cycle ();
   (* Wait for result to become valid *)
-  while not (Bits.to_bool !(outputs.range.valid)) do
+  while not (Bits.to_bool !(outputs.zero_count.valid)) do
     cycle ()
   done;
-  let range = Bits.to_unsigned_int !(outputs.range.value) in
-  print_s [%message "Result" (range : int)];
+  let zero_count = Bits.to_unsigned_int !(outputs.zero_count.value) in
+  print_s [%message "Result" (zero_count : int)];
   (* Show in the waveform that [valid] stays high. *)
   cycle ~n:2 ()
 ;;
@@ -48,12 +48,12 @@ let simple_testbench (sim : Harness.Sim.t) =
 (* The [waves_config] argument to [Harness.run] determines where and how to save waveforms
    for viewing later with a waveform viewer. The commented examples below show how to save
    a waveterm file or a VCD file. *)
-let waves_config = Waves_config.no_waves
+(* let waves_config = Waves_config.no_waves *)
 
-(* let waves_config = *)
-(*   Waves_config.to_directory "/tmp/" *)
-(*   |> Waves_config.as_wavefile_format ~format:Hardcamlwaveform *)
-(* ;; *)
+let waves_config =
+  Waves_config.to_directory "/tmp/"
+  |> Waves_config.as_wavefile_format ~format:Hardcamlwaveform
+;;
 
 (* let waves_config = *)
 (*   Waves_config.to_directory "/tmp/" *)
@@ -62,7 +62,11 @@ let waves_config = Waves_config.no_waves
 
 let%expect_test "Simple test, optionally saving waveforms to disk" =
   Harness.run_advanced ~waves_config ~create:Range_finder.hierarchical simple_testbench;
-  [%expect {| (Result (range 146)) |}]
+  [%expect
+    {|
+    (Result (zero_count 3))
+    Saved waves to /tmp/test_range_finder_ml_Simple_test__optionally_saving_waveforms_to_disk.hardcamlwaveform
+    |}]
 ;;
 
 let%expect_test "Simple test with printing waveforms directly" =
@@ -92,32 +96,41 @@ let%expect_test "Simple test with printing waveforms directly" =
     simple_testbench;
   [%expect
     {|
-    (Result (range 146))
+    (Result (zero_count 3))
     ┌Signals─────────────────────┐┌Waves───────────────────────────────────────────────────────┐
+    │                            ││────────────┬───────────────────────────────────────────────│
+    │range_finder$_state         ││ 0          │1                                              │
+    │                            ││────────────┴───────────────────────────────────────────────│
+    │                            ││────────────┬───┬───────┬───────┬───────┬───────┬───────┬───│
+    │range_finder$current_positio││ 0          │50 │82     │52     │0      │95     │55     │0  │
+    │                            ││────────────┴───┴───────┴───────┴───────┴───────┴───────┴───│
     │range_finder$i$clear        ││────┐                                                       │
     │                            ││    └───────────────────────────────────────────────────────│
     │range_finder$i$clock        ││┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ ┌─┐ │
     │                            ││  └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─┘ └─│
-    │                            ││────────────┬───────┬───────┬───────┬───────────────────────│
-    │range_finder$i$data_in      ││ 0          │16     │67     │150    │4                      │
-    │                            ││────────────┴───────┴───────┴───────┴───────────────────────│
-    │range_finder$i$data_in_valid││            ┌───┐   ┌───┐   ┌───┐   ┌───┐                   │
-    │                            ││────────────┘   └───┘   └───┘   └───┘   └───────────────────│
-    │range_finder$i$finish       ││                                            ┌───┐           │
-    │                            ││────────────────────────────────────────────┘   └───────────│
+    │                            ││────────────┬───────┬───────┬───────┬───────┬───────┬───────│
+    │range_finder$i$data_in      ││ 0          │65468  │65506  │48     │65531  │60     │65481  │
+    │                            ││────────────┴───────┴───────┴───────┴───────┴───────┴───────│
+    │range_finder$i$data_in_valid││            ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   ┌───┐   │
+    │                            ││────────────┘   └───┘   └───┘   └───┘   └───┘   └───┘   └───│
+    │range_finder$i$finish       ││                                                            │
+    │                            ││────────────────────────────────────────────────────────────│
     │range_finder$i$start        ││        ┌───┐                                               │
     │                            ││────────┘   └───────────────────────────────────────────────│
-    │                            ││────────────────┬───────┬───────┬───────────────────────────│
-    │range_finder$max            ││ 0              │16     │67     │150                        │
-    │                            ││────────────────┴───────┴───────┴───────────────────────────│
-    │                            ││────────────┬───┬───────────────────────┬───────────────────│
-    │range_finder$min            ││ 0          │65.│16                     │4                  │
-    │                            ││────────────┴───┴───────────────────────┴───────────────────│
-    │range_finder$o$range$valid  ││                                                ┌───────────│
-    │                            ││────────────────────────────────────────────────┘           │
-    │                            ││────────────────────────────────────────────────┬───────────│
-    │range_finder$o$range$value  ││ 0                                              │146        │
-    │                            ││────────────────────────────────────────────────┴───────────│
+    │                            ││────────────┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───│
+    │range_finder$little_sum     ││ 0          │65.│14 │52 │22 │100│48 │65.│90 │155│115│0  │65.│
+    │                            ││────────────┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───│
+    │                            ││────────────┬───┬───┬───┬───────────┬───┬───┬───┬───────────│
+    │range_finder$next_pos       ││ 0          │82 │0  │52 │0          │95 │0  │55 │0          │
+    │                            ││────────────┴───┴───┴───┴───────────┴───┴───┴───┴───────────│
+    │range_finder$o$zero_count$va││                                                            │
+    │                            ││────────────────────────────────────────────────────────────│
+    │                            ││────────────────────────────────┬───────────────────────┬───│
+    │range_finder$o$zero_count$va││ 0                              │1                      │2  │
+    │                            ││────────────────────────────────┴───────────────────────┴───│
+    │                            ││────────────────────────────────┬───────────────────────┬───│
+    │range_finder$zeros          ││ 0                              │1                      │2  │
+    │                            ││────────────────────────────────┴───────────────────────┴───│
     └────────────────────────────┘└────────────────────────────────────────────────────────────┘
     |}]
 ;;
