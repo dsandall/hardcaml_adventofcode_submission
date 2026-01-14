@@ -1,9 +1,10 @@
 open! Core
+open! Core_unix
 open! Hardcaml
 open! Hardcaml_waveterm
 open! Hardcaml_test_harness
-module Range_finder = Hardcaml_demo_project.Range_finder
-module Harness = Cyclesim_harness.Make (Range_finder.I) (Range_finder.O)
+module Zero_dial = Hardcaml_advent_d1.Zero_dial
+module Harness = Cyclesim_harness.Make (Zero_dial.I) (Zero_dial.O)
 
 let ( <--. ) = Bits.( <--. )
 
@@ -17,8 +18,10 @@ let parse_line line =
 ;;
 
 let sample_input_values =
-  In_channel.read_lines "/home/thebu/ocaml-test/hardcaml_template_project/test/input.txt"
-  |> List.map ~f:parse_line
+  let cwd = Core_unix.getcwd () in
+  (* i'm not happy with this filepath either, but it works for now*)
+  let filepath = Filename.concat cwd "../../../../../test/input.txt" in
+  In_channel.read_lines filepath |> List.map ~f:parse_line
 ;;
 
 let simple_testbench (sim : Harness.Sim.t) =
@@ -74,11 +77,11 @@ let waves_config =
 (* ;; *)
 
 let%expect_test "Simple test, optionally saving waveforms to disk" =
-  Harness.run_advanced ~waves_config ~create:Range_finder.hierarchical simple_testbench;
+  Harness.run_advanced ~waves_config ~create:Zero_dial.hierarchical simple_testbench;
   [%expect
     {|
     (Result (zero_count 992))
-    Saved waves to /tmp/test_range_finder_ml_Simple_test__optionally_saving_waveforms_to_disk.hardcamlwaveform
+    Saved waves to /tmp/test_zero_dial_ml_Simple_test__optionally_saving_waveforms_to_disk.hardcamlwaveform
     |}]
 ;;
 
@@ -94,7 +97,7 @@ let%expect_test "Simple test with printing waveforms directly" =
     ]
   in
   Harness.run_advanced
-    ~create:Range_finder.hierarchical
+    ~create:Zero_dial.hierarchical
     ~trace:`All_named
     ~print_waves_after_test:(fun waves ->
       Waveform.print

@@ -2,7 +2,7 @@
  (modes byte exe) ; project results in executable
  (names generate) ; name of executable(s) 
  (libraries core.command core_unix.command_unix core core_unix hardcaml
-   hardcaml_demo_project jane_rope)
+   hardcaml_advent_d1 jane_rope)
  (preprocess
   (pps ppx_jane))
  (promote))
