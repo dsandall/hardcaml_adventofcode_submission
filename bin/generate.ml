@@ -2,19 +2,19 @@ open! Core
 open! Hardcaml
 
 (*import our design source as a library (named in src/dune)*)
-open! Hardcaml_demo_project
+open! Hardcaml_advent_d1
 
 (*actual hardcaml packaging stuff*)
 let generate_range_finder_rtl () =
   (* a Circuit takes output (and usually) signals, and ensures it can be generated as hardware*)
   (* also can be used to name ports (if not using an interface) *)
   (* the equivalent of a Module in verilog*)
-  let module C = Circuit.With_interface (Range_finder.I) (Range_finder.O) in
+  let module C = Circuit.With_interface (Zero_dial.I) (Zero_dial.O) in
   (* a Scope is a mutable object passed between Circuits that forms a complete Hardcaml design*)
   (* controls design heirarchy, elaboration, subcircuits*)
   (* NOTE: https://www.janestreet.com/web-app/hardcaml-docs/using-interfaces/scopes *)
   let scope = Scope.create ~auto_label_hierarchical_ports:true () in
-  let circuit = C.create_exn ~name:"range_finder_top" (Range_finder.hierarchical scope) in
+  let circuit = C.create_exn ~name:"range_finder_top" (Zero_dial.hierarchical scope) in
   (* Transforming the Scope to RTL*)
   let rtl_circuits =
     Rtl.create ~database:(Scope.circuit_database scope) Verilog [ circuit ]
