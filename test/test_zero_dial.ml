@@ -20,7 +20,7 @@ let parse_line line =
 let sample_input_values =
   let cwd = Core_unix.getcwd () in
   (* i'm not happy with this filepath either, but it works for now*)
-  let filepath = Filename.concat cwd "../../../../../test/input.txt" in
+  let filepath = Filename.concat cwd "../../../../../test/smallinput.txt" in
   In_channel.read_lines filepath |> List.map ~f:parse_line
 ;;
 

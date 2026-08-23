@@ -1,5 +1,5 @@
-(** An example design that takes a series of input values and calculates the range between
-    the largest and smallest one. *)
+(** An example design that tracks position based on input thresholds and counts zero
+    crossings. *)
 
 open! Core
 open! Hardcaml

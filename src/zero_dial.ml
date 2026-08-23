@@ -1,5 +1,4 @@
-(* An example design that takes a series of input values and calculates the range between
-   the largest and smallest one. *)
+(* An example design that tracks position based on input thresholds and counts zero crossings. *)
 
 (* We generally open Core and Hardcaml in any source file in a hardware project. For
    design source files specifically, we also open Signal. *)
@@ -95,7 +94,7 @@ let create scope ({ clock; clear; start; finish; data_in; data_in_valid } : _ I.
                 ]
             ; when_ finish [ sm.set_next Done ]
             ] )
-        ; Done, [ when_ finish [ sm.set_next Accepting_inputs ] ]
+        ; Done, [ if_ finish [ sm.set_next Accepting_inputs ] [] ]
         ]
     ];
   (* return the output signal *)
